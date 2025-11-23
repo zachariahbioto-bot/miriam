@@ -192,3 +192,60 @@ bool CNet::Load(const int file_handle)
    return true;
   }
 //+------------------------------------------------------------------+
+//+------------------------------------------------------------------+
+//| Update Synapses (Applies optimization across all layers)         |
+//+------------------------------------------------------------------+
+bool CNet::UpdateWeights(uint batch_size = 1)
+  {
+   if(m_cLayers == NULL)
+      return false;
+
+   // 1. Iterate through all layers in the network
+   for (int i = 0; i < m_cLayers.Total(); i++)
+     {
+      // Cast the CObject* to CNeuronBase* to access the layer's methods
+      CNeuronBase *layer = (CNeuronBase*)m_cLayers.At(i);
+      if(layer == NULL)
+         return false;
+
+      // 2. Call the layer-specific weight update (where Adam/SGD logic resides)
+      if (!layer.UpdateWeights(batch_size))
+         return false;
+     }
+
+   // 3. Update global training step counter here (needed for Adam optimizer)
+   // m_iStep++; // Assuming a global step counter m_iStep exists
+   
+   return true;
+  }
+//+------------------------------------------------------------------+
+//+------------------------------------------------------------------+
+//| Initialize the OpenCL (GPU) context and distribute it            |
+//+------------------------------------------------------------------+
+bool CNet::InitOpenCL(void)
+  {
+   if(m_bOpenCL) // Check if GPU use is enabled
+     {
+      // 1. Create the OpenCL Manager object
+      m_cOpenCL = new CMyOpenCL();
+      if(m_cOpenCL == NULL)
+         return false;
+
+      // 2. Initialize the OpenCL context (connect to the physical GPU device)
+      if(!m_cOpenCL.Init())
+         return false;
+
+      // 3. Inform all layers about the active OpenCL context
+      // This allows each layer to create its own GPU memory buffers (CBufferCL)
+      if(m_cLayers != NULL)
+        {
+         if(!m_cLayers.SetOpencl(m_cOpenCL))
+            return false;
+        }
+        
+      return true;
+     }
+   // If OpenCL is not enabled, return true anyway (CPU mode)
+   return true;
+  }
+//+------------------------------------------------------------------+
