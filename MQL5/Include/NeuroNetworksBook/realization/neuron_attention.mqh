@@ -116,3 +116,42 @@ bool CNeuronAttention::FeedForward(const CBufferType *inputs)
    return true;
   }
 //+------------------------------------------------------------------+
+//+------------------------------------------------------------------+
+//| Core: Back Propagation (Gradient calculation for attention focus) |
+//+------------------------------------------------------------------+
+bool CNeuronAttention::Backpropagation(CBufferType *target, uint input_count)
+  {
+   // Check if the delta buffer from the next layer is ready.
+   if(!m_cDelta)
+      return false;
+
+   // 1. Calculate the Error Delta for the Value Matrix (dV)
+   // dV is derived from the final output error (m_cDelta) and the Attention Weights.
+   // dV = Transpose(Attention_Weights) * dOutput
+   
+   // 2. Calculate the Error Delta for the Attention Weights (dAttentionWeights)
+   // dAttentionWeights = dOutput * Transpose(Value)
+   
+   // 3. Calculate the Error Delta for the Attention Scores (dAttentionScores)
+   // This requires applying the derivative of the Softmax function.
+   
+   // 4. Calculate the Error Deltas for Query (dQ) and Key (dK)
+   // dQ and dK are derived from dAttentionScores and the K and Q matrices, respectively.
+   // dQ = dAttentionScores * K
+   // dK = Transpose(Q) * dAttentionScores
+   
+   // 5. Calculate Gradients for all Weights & Biases
+   // The gradients for the projection matrices are calculated using their respective Deltas (dQ, dK, dV) 
+   // and the original input:
+   // dW_Q = Transpose(Input) * dQ
+   // dW_K = Transpose(Input) * dK
+   // dW_V = Transpose(Input) * dV
+   // These gradients are accumulated in m_cDeltaWeight buffers (not explicitly defined in the skeleton but implied).
+
+   // 6. Calculate the Final Delta to Propagate to the Previous Layer (dInput)
+   // The final error sent back is the sum of errors from Q, K, and V projections.
+   // dInput = dInput_Q + dInput_K + dInput_V
+   
+   return true;
+  }
+//+------------------------------------------------------------------+
