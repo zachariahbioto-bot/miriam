@@ -99,3 +99,96 @@ public:
    virtual CBufferType* GetDeltaWeights(uint layer) const;
   };
 //+------------------------------------------------------------------+
+//+------------------------------------------------------------------+
+//| Saves the Network's Weights (The Brain/Memory) to a file         |
+//+------------------------------------------------------------------+
+bool CNet::Save(string file_name = NULL)
+  {
+   string name = (file_name == NULL) ? "default.net" : file_name;
+   int handle = FileOpen(name, FILE_WRITE | FILE_BIN);
+   if (handle == INVALID_HANDLE)
+      return false;
+
+   bool result = Save(handle);
+   FileClose(handle);
+   return result;
+  }
+//+------------------------------------------------------------------+
+//| Saves the Network's Weights using an open file handle            |
+//+------------------------------------------------------------------+
+bool CNet::Save(const int file_handle)
+  {
+   if (file_handle == INVALID_HANDLE)
+      return false;
+      
+   // 1. Write Network Header
+   FileWriteInteger(file_handle, Type(), INT_VALUE);
+   
+   // 2. Write Hyperparameters
+   FileWriteDouble(file_handle, m_dLearningRate);
+   FileWriteDouble(file_handle, m_adBeta[0]);
+   FileWriteDouble(file_handle, m_adBeta[1]);
+   FileWriteInteger(file_handle, (int)m_eLossFunction, INT_VALUE);
+   
+   // 3. Write Layer Information
+   if (m_cLayers == NULL)
+      return false;
+   
+   // Delegate the saving process to the CArrayLayers object
+   if (!m_cLayers.Save(file_handle))
+      return false;
+      
+   return true;
+  }
+//+------------------------------------------------------------------+
+//+------------------------------------------------------------------+
+//| Loads the Network's Weights (The Brain/Memory) from a file       |
+//+------------------------------------------------------------------+
+bool CNet::Load(string file_name = NULL, bool common = false)
+  {
+   string name = (file_name == NULL) ? "default.net" : file_name;
+   int handle = FileOpen(name, FILE_READ | FILE_BIN | (common ? FILE_COMMON : 0));
+   if (handle == INVALID_HANDLE)
+      return false;
+
+   bool result = Load(handle);
+   FileClose(handle);
+   return result;
+  }
+//+------------------------------------------------------------------+
+//| Loads the Network's Weights using an open file handle            |
+//+------------------------------------------------------------------+
+bool CNet::Load(const int file_handle)
+  {
+   if (file_handle == INVALID_HANDLE)
+      return false;
+      
+   // 1. Read Network Header (Check the file type ID)
+   if (FileReadInteger(file_handle, INT_VALUE) != Type())
+      return false;
+      
+   // 2. Read Hyperparameters
+   m_dLearningRate = FileReadDouble(file_handle);
+   m_adBeta[0] = FileReadDouble(file_handle);
+   m_adBeta[1] = FileReadDouble(file_handle);
+   m_eLossFunction = (ENUM_LOSS_FUNCTION)FileReadInteger(file_handle, INT_VALUE);
+   
+   // 3. Delete old layers and create a new container
+   if (m_cLayers) delete m_cLayers;
+   m_cLayers = new CArrayLayers();
+   if (m_cLayers == NULL)
+      return false;
+      
+   // 4. Delegate the loading process to the CArrayLayers object
+   // CArrayLayers will use the file handle to determine the type and size of each layer,
+   // creating the correct CNeuronBase, CNeuronLSTM, etc., objects using its factory method.
+   if (!m_cLayers.Load(file_handle))
+      return false;
+
+   // 5. Initialize OpenCL if configured
+   if (m_bOpenCL && m_cLayers.SetOpencl(m_cOpenCL))
+      return false;
+      
+   return true;
+  }
+//+------------------------------------------------------------------+
