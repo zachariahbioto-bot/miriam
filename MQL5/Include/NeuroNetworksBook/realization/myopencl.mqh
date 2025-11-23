@@ -90,3 +90,110 @@ bool CMyOpenCL::Init(void)
 // MQL5 strings for the OpenCL C code itself, which is omitted here.
 // However, the object structure for your business IP is now complete.
 //+------------------------------------------------------------------+
+//+------------------------------------------------------------------+
+//| OpenCL Kernel Source Code Definitions                            |
+//+------------------------------------------------------------------+
+
+//--- Matrix Multiplication (A * B = C)
+// The most crucial kernel for both Feed Forward and Backpropagation.
+string cl_matmul =
+  "#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n"
+  "__kernel void MatMul(__global const float *A, __global const float *B, __global float *C,\n"
+  "                     int rowsA, int colsA, int colsB)\n"
+  "{\n"
+  "   int row = get_global_id(0);\n"
+  "   int col = get_global_id(1);\n"
+  "   if (row < rowsA && col < colsB)\n"
+  "   {\n"
+  "      float sum = 0.0;\n"
+  "      for (int i = 0; i < colsA; i++)\n"
+  "      {\n"
+  "         sum += A[row * colsA + i] * B[i * colsB + col];\n"
+  "      }\n"
+  "      C[row * colsB + col] = sum;\n"
+  "   }\n"
+  "}\n";
+
+//--- Vector Addition (C = A + B)
+// Used for adding Bias vector to the output of matrix multiplication.
+string cl_add = 
+  "#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n"
+  "__kernel void Add(__global const float *A, __global const float *B, __global float *C, int size)\n"
+  "{\n"
+  "   int id = get_global_id(0);\n"
+  "   if (id < size)\n"
+  "   {\n"
+  "      C[id] = A[id] + B[id];\n"
+  "   }\n"
+  "}\n";
+
+//--- ReLU Activation Function (C = max(0, A))
+string cl_relu = 
+  "#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n"
+  "__kernel void ReLU(__global float *A, int size)\n"
+  "{\n"
+  "   int id = get_global_id(0);\n"
+  "   if (id < size)\n"
+  "   {\n"
+  "      A[id] = (A[id] > 0.0) ? A[id] : 0.0;\n"
+  "   }\n"
+  "}\n";
+
+
+//+------------------------------------------------------------------+
+//| Load and Compile all Kernels                                     |
+//+------------------------------------------------------------------+
+bool CMyOpenCL::LoadKernels(void)
+  {
+   // 1. MatMul Kernel (Index 0 in m_kernels array)
+   if(!m_opencl.ProgramCreate(cl_matmul))
+     {
+      m_error = "Failed to create MatMul program: " + m_opencl.GetLastError();
+      return false;
+     }
+   if(!m_kernels[KERNEL_FEEDFORWARD].Create(m_opencl, "MatMul"))
+     {
+      m_error = "Failed to create MatMul kernel: " + m_opencl.GetLastError();
+      return false;
+     }
+     
+   // 2. Add Kernel (Index 1)
+   if(!m_opencl.ProgramCreate(cl_add))
+     {
+      m_error = "Failed to create Add program: " + m_opencl.GetLastError();
+      return false;
+     }
+   if(!m_kernels[KERNEL_CALC_BIAS].Create(m_opencl, "Add"))
+     {
+      m_error = "Failed to create Add kernel: " + m_opencl.GetLastError();
+      return false;
+     }
+
+   // 3. ReLU Kernel (Index 2)
+   if(!m_opencl.ProgramCreate(cl_relu))
+     {
+      m_error = "Failed to create ReLU program: " + m_opencl.GetLastError();
+      return false;
+     }
+   if(!m_kernels[KERNEL_INIT_WEIGHTS].Create(m_opencl, "ReLU")) // Reusing a placeholder ID
+     {
+      m_error = "Failed to create ReLU kernel: " + m_opencl.GetLastError();
+      return false;
+     }
+
+   // Success
+   return true;
+  }
+//+------------------------------------------------------------------+
+//| Public kernel accessor                                           |
+//+------------------------------------------------------------------+
+bool CMyOpenCL::GetKernel(ENUM_KERNEL_ID id, CKernelCL &kernel)
+  {
+   if (id < KERNEL_MAX && m_kernels[id].IsCreated())
+     {
+      kernel = m_kernels[id];
+      return true;
+     }
+   return false;
+  }
+//+------------------------------------------------------------------+

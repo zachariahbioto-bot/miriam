@@ -99,3 +99,66 @@ void CBufferType::Zero(void)
 // Note: Other method implementations (Save, Load, OpenCL) are complex and will be built in the future.
 // The structure is defined for now.
 //+------------------------------------------------------------------+
+//+------------------------------------------------------------------+
+//| Set OpenCL Context                                               |
+//+------------------------------------------------------------------+
+bool CBufferType::SetOpenCL(CMyOpenCL *opencl)
+  {
+   if(!opencl)
+      return false;
+   m_cOpenCL = opencl;
+   m_bOpenCL = m_cOpenCL.IsInitialized();
+   return true;
+  }
+//+------------------------------------------------------------------+
+//| Initialize GPU Memory Buffer                                     |
+//+------------------------------------------------------------------+
+bool CBufferType::InitOpenCL(void)
+  {
+   if(!m_bOpenCL)
+      return false;
+
+   // 1. Calculate buffer size in bytes
+   uint size = m_buffer.Size();
+   if(size == 0)
+      return false;
+   
+   // 2. Create the OpenCL buffer object
+   m_cl_buffer = new CBufferCL();
+   if(m_cl_buffer == NULL)
+      return false;
+
+   // 3. Allocate memory on the GPU (read/write access)
+   if(!m_cl_buffer.BufferCreate(m_cOpenCL.OpenCL(), size * sizeof(TYPE), CL_MEM_READ_WRITE))
+     {
+      delete m_cl_buffer;
+      m_cl_buffer = NULL;
+      return false;
+     }
+     
+   m_bUseOpenCL = true;
+   return true;
+  }
+//+------------------------------------------------------------------+
+//| Load data from CPU to GPU (Upload Weights/Input)                 |
+//+------------------------------------------------------------------+
+bool CBufferType::LoadToOpenCL(void)
+  {
+   if(!m_bUseOpenCL || m_cl_buffer == NULL)
+      return false;
+   
+   // Map the CPU matrix data directly to the GPU buffer
+   return m_buffer.BufferWrite(m_cl_buffer);
+  }
+//+------------------------------------------------------------------+
+//| Read data from GPU to CPU (Download Predictions/Gradients)       |
+//+------------------------------------------------------------------+
+bool CBufferType::ReadFromOpenCL(void)
+  {
+   if(!m_bUseOpenCL || m_cl_buffer == NULL)
+      return false;
+      
+   // Map the GPU buffer data back to the CPU matrix
+   return m_buffer.BufferRead(m_cl_buffer);
+  }
+//+------------------------------------------------------------------+
