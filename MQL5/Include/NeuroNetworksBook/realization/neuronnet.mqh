@@ -1,0 +1,101 @@
+//+------------------------------------------------------------------+
+//|                                                  neuronnet.mqh   |
+//|                                   Copyright 2025, Your Name Ltd. |
+//|                                      Neural Network Business IP  |
+//+------------------------------------------------------------------+
+#property copyright "Copyright 2025, Your Name Ltd."
+#property link      "https://www.mql5.com"
+
+#include "defines.mqh"
+#include "layer_description.mqh"
+#include <Object.mqh>
+
+//--- Forward declarations of classes we will build next
+class CArrayLayers;
+class CMyOpenCL;
+class CPositionEncoder;
+class CBufferType;
+class CNeuronBase;
+
+//+------------------------------------------------------------------+
+//| Neural Network Manager Class                                     |
+//+------------------------------------------------------------------+
+class CNet : public CObject
+  {
+protected:
+   //--- State Flags
+   bool              m_bTrainMode;        // Training mode flag
+   bool              m_bOpenCL;           // OpenCL enabled flag
+   bool              m_bPositionEncoder;  // Positional encoding flag (for Transformers)
+
+   //--- Internal Objects (The "Organs" of the Net)
+   CArrayLayers* m_cLayers;           // Dynamic array storing all neural layers
+   CMyOpenCL* m_cOpenCL;           // GPU Context Manager
+   CPositionEncoder* m_cPositionEncoder;  // Positional Encoder for Time Series
+
+   //--- Training Hyperparameters
+   TYPE              m_dNNLoss;           // Current Loss Value
+   int               m_iLossSmoothFactor; // Smoothing factor for loss calculation
+   ENUM_LOSS_FUNCTION m_eLossFunction;    // Loss function type (MSE, CrossEntropy, etc.)
+   
+   //--- Optimization Parameters
+   TYPE              m_dLearningRate;     // Learning Rate
+   VECTOR            m_adBeta;            // Beta parameters (for Adam optimizer)
+   VECTOR            m_adLambda;          // Regularization parameters (L1/L2)
+
+public:
+                     CNet(void);
+                    ~CNet(void);
+
+   //--- Initialization Methods
+   bool              Create(CArrayObj *descriptions);
+   bool              Create(CArrayObj *descriptions, TYPE learning_rate, TYPE beta1, TYPE beta2);
+   bool              Create(CArrayObj *descriptions, ENUM_LOSS_FUNCTION loss_function, TYPE lambda1, TYPE lambda2);
+   bool              Create(CArrayObj *descriptions, TYPE learning_rate, TYPE beta1, TYPE beta2, ENUM_LOSS_FUNCTION loss_function, TYPE lambda1, TYPE lambda2);
+
+   //--- OpenCL (GPU) Control
+   void              UseOpenCL(bool value);
+   bool              UseOpenCL(void) const { return(m_bOpenCL); }
+   bool              InitOpenCL(void);
+
+   //--- Positional Encoding Control (The "Time" Awareness)
+   void              UsePositionEncoder(bool value);
+   bool              UsePositionEncoder(void) const { return(m_bPositionEncoder); }
+
+   //--- Core Operations (The "Life" of the Net)
+   bool              FeedForward(const CBufferType *inputs);    // Forward Pass
+   bool              Backpropagation(CBufferType *target);      // Backward Pass (Learning)
+   bool              UpdateWeights(uint batch_size = 1);        // Update Synapses
+   bool              GetResults(CBufferType *&result);          // Retrieve Predictions
+
+   //--- Training Configuration
+   void              SetLearningRates(TYPE learning_rate, TYPE beta1 = defBeta1, TYPE beta2 = defBeta2);
+   
+   //--- Loss Function Management
+   bool              LossFunction(ENUM_LOSS_FUNCTION loss_function, TYPE lambda1 = defLambdaL1, TYPE lambda2 = defLambdaL2);
+   ENUM_LOSS_FUNCTION LossFunction(void) const { return(m_eLossFunction); }
+   ENUM_LOSS_FUNCTION LossFunction(TYPE &lambda1, TYPE &lambda2);
+   
+   TYPE              GetRecentAverageLoss(void) const { return(m_dNNLoss); }
+   void              LossSmoothFactor(int value) { m_iLossSmoothFactor = value;}
+   int               LossSmoothFactor(void) const { return(m_iLossSmoothFactor);}
+
+   //--- State Control
+   bool              TrainMode(void) const { return m_bTrainMode; }
+   void              TrainMode(bool mode);
+
+   //--- "Memory" / Persistence (Saving and Loading the Brain)
+   virtual bool      Save(string file_name = NULL);
+   virtual bool      Save(const int file_handle);
+   virtual bool      Load(string file_name = NULL, bool common = false);
+   virtual bool      Load(const int file_handle);
+
+   //--- Identification
+   virtual int       Type(void) const { return(defNeuronNet); }
+
+   //--- Internals Access
+   virtual CBufferType* GetGradient(uint layer) const;
+   virtual CBufferType* GetWeights(uint layer) const;
+   virtual CBufferType* GetDeltaWeights(uint layer) const;
+  };
+//+------------------------------------------------------------------+
