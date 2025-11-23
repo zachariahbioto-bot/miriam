@@ -139,3 +139,39 @@ bool CNeuronLSTM::FeedForward(const CBufferType *inputs)
    return true;
   }
 //+------------------------------------------------------------------+
+//+------------------------------------------------------------------+
+//| Core: Back Propagation (Error flow through memory gates)         |
+//+------------------------------------------------------------------+
+bool CNeuronLSTM::Backpropagation(CBufferType *target, uint input_count)
+  {
+   // Check if the delta buffer from the next layer is ready.
+   if(!m_cDelta)
+      return false;
+
+   // 1. Calculate the Error Delta for the Output Gate (dO_t)
+   // Error flows from the output (H_t) back through the tanh of the Cell State (C_t) and the Output Gate (O_t).
+
+   // 2. Calculate the Error Delta for the Cell State (dC_t)
+   // This is the most complex step. Error accumulates from the output (H_t) and from the next time step's memory (C_t+1).
+   // dC_t = dC_t(from H_t) + dC_t(from C_t+1)
+
+   // 3. Calculate the Error Delta for the Input Gate (dI_t) and Candidate Gate (dC~_t)
+   // This uses dC_t to find the gradients for the gates controlling new information.
+
+   // 4. Calculate the Error Delta for the Forget Gate (dF_t)
+   // This uses dC_t to find the gradients for the gate controlling old information (the 'forgetting' mechanism).
+
+   // 5. Calculate Gradients for all Weights & Biases (dW_f, dW_i, dW_c, dW_o)
+   // dW_gate = Transpose(Input_concatenated) * Delta_gate
+   // This step accumulates gradients in the respective m_cDeltaWeight buffers.
+
+   // 6. Calculate the Delta to Propagate to the Previous Layer (dInput)
+   // This combines the errors from all gates and sends the final, scaled error back to the previous layer.
+   
+   return true;
+  }
+//+------------------------------------------------------------------+
+// Note: Backpropagation for LSTM is an iterative process over time. 
+// The full implementation requires looping through sequence steps and 
+// is heavily dependent on OpenCL kernels for performance.
+//+------------------------------------------------------------------+
